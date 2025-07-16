@@ -9,15 +9,12 @@ from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 from dotenv import load_dotenv
 import fitz  # PyMuPDF for PDF parsing
-from openai import OpenAI
+from groq import Groq
 
 # ─── Load environment and initialize clients ────────────────────────────────────
 load_dotenv()
-GRAVIXLAYER_API_KEY = os.getenv("GRAVIXLAYER_API_KEY")
-client = OpenAI(
-    api_key=GRAVIXLAYER_API_KEY,
-    base_url="https://api.gravixlayer.com/v1/inference"
-)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=GROQ_API_KEY)
 
 # ─── Enhanced Legal Entity Extraction with PDF Source ──────────────────────────
 class EnhancedLegalEntityExtractor:
@@ -227,7 +224,7 @@ class EnhancedLegalEntityExtractor:
         
         try:
             response = self.client.chat.completions.create(
-                model="llama3.1:8b-instruct-fp16",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=800
             )
@@ -284,7 +281,6 @@ class EnhancedLegalEntityExtractor:
             "damages_awarded": None
         }
 
-
 # ─── Enhanced Legal Document Parser with PDF Source ─────────────────────────────
 class ComprehensiveLegalParser:
     def __init__(self):
@@ -334,7 +330,7 @@ class ComprehensiveLegalParser:
         
         try:
             response = client.chat.completions.create(
-                model="llama3.1:8b-instruct-fp16",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=500
             )
@@ -354,7 +350,7 @@ class ComprehensiveLegalParser:
         
         try:
             response = client.chat.completions.create(
-                model="llama3.1:8b-instruct-fp16",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=800
             )
@@ -425,7 +421,6 @@ class ComprehensiveLegalParser:
         
         return metadata
 
-
 # ─── Enhanced PageIndex Tree Generator with PDF Source ──────────────────────────
 class PageIndexTreeGenerator:
     def __init__(self):
@@ -463,7 +458,7 @@ class PageIndexTreeGenerator:
         
         try:
             response = client.chat.completions.create(
-                model="llama3.1:8b-instruct-fp16",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=300
             )
@@ -599,22 +594,13 @@ class PageIndexTreeGenerator:
         
         try:
             response = client.chat.completions.create(
-                model="llama3.1:8b-instruct-fp16",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=400
             )
             return response.choices[0].message.content.strip()
         except:
             return f"Section '{title}' from {pdf_source} - Summary generation failed"
-
-
-# ─── Index Existence Checker ────────────────────────────────────────────────────
-def check_index_exists(pdf_path: str, index_dir: str) -> bool:
-    """Check if index already exists for a PDF"""
-    name = Path(pdf_path).stem
-    index_path = os.path.join(index_dir, f"{name}_pageindex.json")
-    return os.path.exists(index_path)
-
 
 # ─── Main Index Builder Function ────────────────────────────────────────────────
 def build_enhanced_pageindex_system(pdf_dir, index_dir):
@@ -624,36 +610,10 @@ def build_enhanced_pageindex_system(pdf_dir, index_dir):
     tree_generator = PageIndexTreeGenerator()
     legal_parser = ComprehensiveLegalParser()
     
-    # Get all PDF files
-    pdf_files = glob.glob(os.path.join(pdf_dir, "*.pdf"))
-    
-    # Filter out PDFs that already have indices
-    pdfs_to_process = []
-    skipped_count = 0
-    
-    for pdf_path in pdf_files:
-        name = Path(pdf_path).stem
-        if check_index_exists(pdf_path, index_dir):
-            print(f"⏭️  Skipping {name} - Index already exists")
-            skipped_count += 1
-        else:
-            pdfs_to_process.append(pdf_path)
-    
-    print(f"\n📊 Processing Status:")
-    print(f"  - Total PDFs found: {len(pdf_files)}")
-    print(f"  - Already indexed: {skipped_count}")
-    print(f"  - To be processed: {len(pdfs_to_process)}")
-    
-    if not pdfs_to_process:
-        print("\n✨ All PDFs already have indices. Nothing to process!")
-        return
-    
-    print(f"\n🔄 Processing {len(pdfs_to_process)} PDFs...")
-    
-    for i, pdf_path in enumerate(pdfs_to_process, 1):
+    for pdf_path in glob.glob(os.path.join(pdf_dir, "*.pdf")):
         name = Path(pdf_path).stem
         pdf_source = Path(pdf_path).name
-        print(f"\n[{i}/{len(pdfs_to_process)}] Processing: {name} from PDF: {pdf_source}")
+        print(f"\nProcessing: {name} from PDF: {pdf_source}")
         
         try:
             metadata = legal_parser.parse_complete_document(pdf_path, name)
@@ -673,7 +633,7 @@ def build_enhanced_pageindex_system(pdf_dir, index_dir):
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(output_data, f, indent=2, ensure_ascii=False)
             
-            print(f"✅ Generated Enhanced PageIndex for {name}")
+            print(f"✓ Generated Enhanced PageIndex for {name}")
             print(f"  - Source PDF: {pdf_source}")
             print(f"  - Plaintiffs: {metadata.get('plaintiffs', [])}")
             print(f"  - Defendants: {metadata.get('defendants', [])}")
@@ -681,13 +641,8 @@ def build_enhanced_pageindex_system(pdf_dir, index_dir):
             print(f"  - Case Numbers: {metadata.get('case_numbers', [])}")
             
         except Exception as e:
-            print(f"❌ Error processing {name}: {e}")
+            print(f"Error processing {name}: {e}")
             continue
-    
-    print(f"\n🎉 Index building completed!")
-    print(f"  - Processed: {len(pdfs_to_process)} PDFs")
-    print(f"  - Skipped: {skipped_count} PDFs (already indexed)")
-
 
 # ─── Main Application ───────────────────────────────────────────────────────────
 if __name__ == "__main__":
@@ -695,15 +650,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Legal Document Index Builder")
     parser.add_argument("--pdf_dir", default="pdfs", help="PDF directory")
-    parser.add_argument("--index_dir", default="pageindices_gravix", help="PageIndex output directory")
-    parser.add_argument("--force", action="store_true", help="Force rebuild even if index exists")
+    parser.add_argument("--index_dir", default="pageindices1", help="PageIndex output directory")
     args = parser.parse_args()
 
-    print("🚀 Starting Enhanced PageIndex system...")
-    
-    if args.force:
-        print("⚠️  Force mode enabled - Will rebuild all indices")
-        # If force mode, we can modify the function to ignore existing indices
-        # For now, we'll just show the message
-    
+    print("Building Enhanced PageIndex system...")
     build_enhanced_pageindex_system(args.pdf_dir, args.index_dir)
+    print("\nIndex building completed!")
